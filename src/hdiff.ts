@@ -51,25 +51,22 @@ export default class Hdiff {
       const { skipDelete } = this
       const { fileName } = entry
 
-      if (/\/$/.test(fileName)) {
-        if (!['GenshinImpact_Data', 'Native'].find(n => fileName.includes(n))) return
-        zipfile.readEntry()
-      } else {
-        console.log('Unzipping:', fileName)
-        zipfile.openReadStream(entry, async (err, stream) => {
-          if (err) return reject(err)
+      if (/\/$/.test(fileName)) return zipfile.readEntry()
 
-          try {
-            if (!skipDelete.includes(fileName)) skipDelete.push(fileName)
-            await this.writeStream(join(dst, fileName), stream)
-            resolve()
-          } catch (e) {
-            reject(e)
-          } finally {
-            zipfile.readEntry()
-          }
-        })
-      }
+      console.log('Unzipping:', fileName)
+      zipfile.openReadStream(entry, async (err, stream) => {
+        if (err) return reject(err)
+
+        try {
+          if (!skipDelete.includes(fileName)) skipDelete.push(fileName)
+          await this.writeStream(join(dst, fileName), stream)
+          resolve()
+        } catch (e) {
+          reject(e)
+        } finally {
+          zipfile.readEntry()
+        }
+      })
     })
   }
 
@@ -132,11 +129,16 @@ export default class Hdiff {
 
     if (hdiffFiles == null || hdiffFiles.length === 0) return
 
-    for (const file of hdiffFiles) {
-      const { remoteName } = JSON.parse(file)
-      if (remoteName == null) continue
+    const remoteNames = hdiffFiles
+      .map(file => JSON.parse(file)?.remoteName)
+      .filter(remoteName => remoteName != null)
 
-      await this.patchFile(dir, remoteName)
+    while (remoteNames.length > 0) {
+      await Promise.all(
+        remoteNames
+          .splice(0, Math.min(remoteNames.length, 5))
+          .map(remoteName => this.patchFile(dir, remoteName))
+      )
     }
 
     const tmpDir = join(cwd(), 'tmp')
