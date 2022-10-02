@@ -45,7 +45,7 @@ export default class Hdiff {
     if (await this.isSameFile(buf, path)) return console.log('Identical file, skipping.')
 
     const dirPath = dirname(path)
-    if (!await dirExists(dirPath)) await mkdir(dirPath)
+    if (!await dirExists(dirPath)) await mkdir(dirPath, { recursive: true })
     await writeFile(path, buf)
   }
 
