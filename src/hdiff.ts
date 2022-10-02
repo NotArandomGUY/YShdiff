@@ -43,6 +43,9 @@ export default class Hdiff {
   private async writeStream(path: string, stream: Readable): Promise<void> {
     const buf = await this.readStream(stream)
     if (await this.isSameFile(buf, path)) return console.log('Identical file, skipping.')
+
+    const dirPath = dirname(path)
+    if (!await dirExists(dirPath)) await mkdir(dirPath)
     await writeFile(path, buf)
   }
 
