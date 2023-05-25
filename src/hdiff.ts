@@ -8,11 +8,14 @@ import { deleteFile, dirExists, fileExists, fileSize, mkdir, readFile, rm, write
 function execCommand(cmd: string): Promise<string> {
   return new Promise((res, rej) => {
     const cp = exec(cmd)
+
     let buffer = ''
+
     cp.stdout?.setEncoding('utf8')
     cp.stdout?.on('data', data => buffer += data)
     cp.stderr?.setEncoding('utf8')
     cp.stderr?.on('data', data => buffer += data)
+
     cp.on('exit', () => res(buffer))
     cp.on('error', (err) => rej(err))
   })
@@ -28,12 +31,14 @@ export default class Hdiff {
   private async isSameFile(src: Buffer, dst: string) {
     if (!await fileExists(dst)) return false
     if (src.length !== await fileSize(dst)) return false
+
     return Buffer.compare(src, await readFile(dst)) === 0
   }
 
   private async readStream(stream: Readable): Promise<Buffer> {
     return new Promise<Buffer>((resolve, reject) => {
       const bufs: Buffer[] = []
+
       stream.on('data', chunk => bufs.push(chunk))
       stream.on('end', () => resolve(Buffer.concat(bufs)))
       stream.on('error', err => reject(err))
@@ -54,21 +59,19 @@ export default class Hdiff {
       const { skipDelete } = this
       const { fileName } = entry
 
-      if (/\/$/.test(fileName)) return zipfile.readEntry()
+      if (/[\\/]$/.test(fileName)) return zipfile.readEntry()
 
       console.log('Unzipping:', fileName)
-      zipfile.openReadStream(entry, async (err, stream) => {
+
+      zipfile.openReadStream(entry, (err, stream) => {
         if (err) return reject(err)
 
-        try {
-          if (!skipDelete.includes(fileName)) skipDelete.push(fileName)
-          await this.writeStream(join(dst, fileName), stream)
-          resolve()
-        } catch (e) {
-          reject(e)
-        } finally {
-          zipfile.readEntry()
-        }
+        if (!skipDelete.includes(fileName)) skipDelete.push(fileName)
+
+        this.writeStream(join(dst, fileName), stream)
+          .then(resolve)
+          .catch(reject)
+          .finally(() => zipfile.readEntry())
       })
     })
   }
@@ -89,6 +92,7 @@ export default class Hdiff {
 
     try {
       const out = await execCommand(`"${join(cwd(), 'hdiff/hpatchz.exe')}" "${filePath}" "${hdiffPath}" "${tmpPath}"`)
+
       if (!await fileExists(tmpPath)) return console.log('Patch failed:', file)
 
       console.log(out)
@@ -96,6 +100,7 @@ export default class Hdiff {
       if (!skipDelete.includes(file)) skipDelete.push(file)
 
       await writeFile(filePath, await readFile(tmpPath))
+
       if (await fileExists(hdiffPath)) await deleteFile(hdiffPath)
     } catch (err) {
       console.error(err)
@@ -105,17 +110,14 @@ export default class Hdiff {
   async unzip(src: string, dst: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       console.log('Opening zip:', src)
-      yauzl.open(src, { lazyEntries: true }, async (err, zipfile) => {
+
+      yauzl.open(src, { lazyEntries: true }, (err, zipfile) => {
         if (err) return reject(err)
 
-        zipfile.on('entry', async (entry: Entry) => {
-          try {
-            await this.unzipEntry(zipfile, entry, dst)
-          } catch (e) {
-            console.error(e)
-          }
+        zipfile.on('entry', (entry: Entry) => {
+          this.unzipEntry(zipfile, entry, dst).catch(console.error)
         })
-        zipfile.on('end', () => resolve())
+        zipfile.on('end', resolve)
 
         zipfile.readEntry()
       })
@@ -124,6 +126,9 @@ export default class Hdiff {
 
   async patch(dir: string): Promise<void> {
     const hdiffFilesPath = join(dir, 'hdifffiles.txt')
+
+    if (!await fileExists(hdiffFilesPath)) return console.log('Skip patch file')
+
     const hdiffFiles = (await readFile(hdiffFilesPath))
       ?.toString()
       ?.split('\n')
@@ -152,7 +157,11 @@ export default class Hdiff {
 
   async delete(dir: string): Promise<void> {
     const { skipDelete } = this
+
     const deleteFilesPath = join(dir, 'deletefiles.txt')
+
+    if (!await fileExists(deleteFilesPath)) return console.log('Skip delete file')
+
     const deleteFiles = (await readFile(deleteFilesPath))
       ?.toString()
       ?.split('\n')
