@@ -5,14 +5,21 @@
   "main": "src/index.ts",
   "bin": "build/index.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node ./build"
+    "build": "node ./build.js",
+    "start": "node ./build/index.js"
+  },
+  "pkg": {
+    "targets": [
+      "node18-win"
+    ]
   },
   "author": "NotArandomGUY",
   "license": "AGPL-3.0",
   "devDependencies": {
     "@types/node": "^18.7.11",
-    "@types/yauzl": "^2.10.0"
+    "@types/yauzl": "^2.10.0",
+    "pkg": "^5.8.1",
+    "resedit": "^1.6.0"
   },
   "dependencies": {
     "yauzl": "^2.10.0"
